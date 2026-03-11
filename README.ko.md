@@ -145,27 +145,35 @@ unity-cli console --filter error
 
 ### C# 코드 실행
 
-Unity Editor 내에서 C# 코드를 직접 실행합니다. UnityEngine, UnityEditor 및 로드된 모든 어셈블리에 접근 가능합니다.
+가장 강력한 명령어입니다. Unity Editor 런타임에서 임의의 C# 코드를 실행합니다. UnityEngine, UnityEditor, ECS 및 로드된 모든 어셈블리에 접근 가능합니다. 일회성 조회나 수정을 위해 커스텀 도구를 만들 필요가 없습니다.
+
+단순 표현식은 결과를 자동 반환합니다. 여러 문장일 때는 명시적 `return`이 필요합니다.
 
 ```bash
-# 단순 표현식 (결과 자동 반환)
+# 단순 표현식
 unity-cli exec "Time.time"
-# → 42.1337
+unity-cli exec "Application.dataPath"
+unity-cli exec "EditorSceneManager.GetActiveScene().name"
 
-# 활성 씬 이름 조회
-unity-cli exec "UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene().name"
-# → "MainScene"
-
-# 오브젝트 개수 조회
+# 게임 오브젝트 조회
 unity-cli exec "GameObject.FindObjectsOfType<Camera>().Length"
-# → 3
+unity-cli exec "Selection.activeGameObject?.name ?? \"nothing selected\""
 
-# 여러 문장 (명시적 return 필요)
-unity-cli exec "var cameras = GameObject.FindObjectsOfType<Camera>(); return cameras.Length;"
+# 여러 문장 (명시적 return)
+unity-cli exec "var go = new GameObject(\"Marker\"); go.tag = \"EditorOnly\"; return go.name;"
 
-# 추가 using 지시문 포함
+# ECS 월드 조사 (추가 using 포함)
 unity-cli exec "World.All.Count" --usings Unity.Entities
+unity-cli exec "var sb = new System.Text.StringBuilder(); foreach(var w in World.All) sb.AppendLine(w.Name); return sb.ToString();" --usings Unity.Entities
+
+# 런타임에서 프로젝트 설정 수정
+unity-cli exec "PlayerSettings.bundleVersion = \"1.2.3\"; return PlayerSettings.bundleVersion;"
+
+# ScriptableObject 접근
+unity-cli exec "Resources.Load<GameSettings>(\"GameSettings\").maxPlayers" --usings YourNamespace
 ```
+
+`exec`는 실제 C#을 컴파일하고 실행하므로, 커스텀 도구가 할 수 있는 모든 것을 할 수 있습니다 — ECS 엔티티 조사, 에셋 수정, 내부 API 호출, 에디터 유틸리티 실행. AI 에이전트에게 이것은 **도구 코드를 한 줄도 작성하지 않고 Unity 전체 런타임에 즉시 접근**할 수 있다는 의미입니다.
 
 ### 메뉴 아이템
 
@@ -180,15 +188,22 @@ unity-cli menu "Window/General/Console"
 
 ### 에셋 리시리얼라이즈
 
-에셋 파일(.prefab, .unity, .asset, .mat)을 텍스트로 직접 수정한 후 YAML 리시리얼라이즈를 강제합니다.
+AI 에이전트(와 사람)는 Unity 에셋 파일 — `.prefab`, `.unity`, `.asset`, `.mat` — 을 텍스트 YAML로 직접 수정할 수 있습니다. 하지만 Unity의 YAML 시리얼라이저는 엄격합니다: 필드 누락, 잘못된 들여쓰기, 오래된 `fileID` 하나면 에셋이 조용히 깨집니다.
+
+`reserialize`가 이걸 해결합니다. 텍스트 수정 후 실행하면 Unity가 에셋을 메모리에 로드한 뒤 자체 시리얼라이저로 다시 기록합니다. Inspector에서 수정한 것과 동일한, 깨끗하고 유효한 YAML 파일이 됩니다.
 
 ```bash
-# 단일 파일
-unity-cli reserialize Assets/Scenes/Main.unity
+# 프리팹의 Transform 값을 텍스트로 수정한 후
+unity-cli reserialize Assets/Prefabs/Player.prefab
 
-# 여러 파일
-unity-cli reserialize Assets/Prefabs/Player.prefab Assets/Prefabs/Enemy.prefab
+# 여러 씬을 일괄 수정한 후
+unity-cli reserialize Assets/Scenes/Main.unity Assets/Scenes/Lobby.unity
+
+# 머티리얼 속성 수정 후
+unity-cli reserialize Assets/Materials/Character.mat
 ```
+
+이것이 텍스트 기반 에셋 수정을 안전하게 만드는 핵심입니다. 이게 없으면 YAML 필드 하나 잘못 놓은 것이 런타임에서야 드러나는 프리팹 파손으로 이어집니다. 이게 있으면 **AI 에이전트가 어떤 Unity 에셋이든 텍스트로 자신 있게 수정**할 수 있습니다 — 프리팹에 컴포넌트 추가, 씬 계층 구조 변경, 머티리얼 속성 조정 — 결과가 정상적으로 로드된다는 것을 보장하면서.
 
 ### 프로파일러
 

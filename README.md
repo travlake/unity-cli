@@ -151,27 +151,35 @@ unity-cli exec "typeof(UnityEditor.LogEntries).GetMethod(\"Clear\", System.Refle
 
 ### Execute C# Code
 
-Run arbitrary C# code inside the Unity Editor. Has full access to UnityEngine, UnityEditor, and all loaded assemblies.
+Run arbitrary C# code inside the Unity Editor at runtime. This is the most powerful command — it gives you full access to UnityEngine, UnityEditor, ECS, and every loaded assembly. No need to write a custom tool for one-off queries or mutations.
+
+Single expressions auto-return their result. Multi-statement code needs an explicit `return`.
 
 ```bash
-# Simple expression (auto-returns result)
+# Simple expressions
 unity-cli exec "Time.time"
-# → 42.1337
+unity-cli exec "Application.dataPath"
+unity-cli exec "EditorSceneManager.GetActiveScene().name"
 
-# Get active scene name
-unity-cli exec "UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene().name"
-# → "MainScene"
-
-# Count objects
+# Query game objects
 unity-cli exec "GameObject.FindObjectsOfType<Camera>().Length"
-# → 3
+unity-cli exec "Selection.activeGameObject?.name ?? \"nothing selected\""
 
-# Multi-statement (needs explicit return)
-unity-cli exec "var cameras = GameObject.FindObjectsOfType<Camera>(); return cameras.Length;"
+# Multi-statement (explicit return)
+unity-cli exec "var go = new GameObject(\"Marker\"); go.tag = \"EditorOnly\"; return go.name;"
 
-# With extra using directives
+# ECS world inspection with extra usings
 unity-cli exec "World.All.Count" --usings Unity.Entities
+unity-cli exec "var sb = new System.Text.StringBuilder(); foreach(var w in World.All) sb.AppendLine(w.Name); return sb.ToString();" --usings Unity.Entities
+
+# Modify project settings at runtime
+unity-cli exec "PlayerSettings.bundleVersion = \"1.2.3\"; return PlayerSettings.bundleVersion;"
+
+# Access ScriptableObjects
+unity-cli exec "Resources.Load<GameSettings>(\"GameSettings\").maxPlayers" --usings YourNamespace
 ```
+
+Because `exec` compiles and runs real C#, it can do anything a custom tool can — inspect ECS entities, modify assets, call internal APIs, run editor utilities. For AI agents, this means **zero-friction access to Unity's entire runtime** without writing a single line of tool code.
 
 ### Menu Items
 
@@ -186,15 +194,22 @@ Note: `File/Quit` is blocked for safety.
 
 ### Asset Reserialize
 
-Force YAML reserialize after direct text edits to asset files (.prefab, .unity, .asset, .mat).
+AI agents (and humans) can edit Unity asset files — `.prefab`, `.unity`, `.asset`, `.mat` — as plain text YAML. But Unity's YAML serializer is strict: a missing field, wrong indent, or stale `fileID` will corrupt the asset silently.
+
+`reserialize` fixes this. After a text edit, it tells Unity to load the asset into memory and write it back out through its own serializer. The result is a clean, valid YAML file — as if you had edited it through the Inspector.
 
 ```bash
-# Single file
-unity-cli reserialize Assets/Scenes/Main.unity
+# After editing a prefab's transform values in a text editor
+unity-cli reserialize Assets/Prefabs/Player.prefab
 
-# Multiple files
-unity-cli reserialize Assets/Prefabs/Player.prefab Assets/Prefabs/Enemy.prefab
+# After batch-editing multiple scenes
+unity-cli reserialize Assets/Scenes/Main.unity Assets/Scenes/Lobby.unity
+
+# After modifying material properties
+unity-cli reserialize Assets/Materials/Character.mat
 ```
+
+This is what makes text-based asset editing safe. Without it, a single misplaced YAML field can break a prefab with no visible error until runtime. With it, **AI agents can confidently modify any Unity asset through plain text** — add components to prefabs, adjust scene hierarchies, change material properties — and know the result will load correctly.
 
 ### Profiler
 
