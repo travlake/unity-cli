@@ -69,8 +69,10 @@ func Execute() error {
 		return err
 	}
 
-	if err := waitUntilReady(inst.Port, flagTimeout); err != nil {
-		return err
+	if state := checkUnityReady(inst.Port); isBusyState(state) {
+		if err := waitUntilReady(inst.Port, flagTimeout); err != nil {
+			return err
+		}
 	}
 
 	send := func(command string, params interface{}) (*client.CommandResponse, error) {
@@ -81,7 +83,7 @@ func Execute() error {
 
 	switch category {
 	case "editor":
-		resp, err = editorCmd(subArgs, send)
+		resp, err = editorCmd(subArgs, send, inst)
 	case "console":
 		resp, err = consoleCmd(subArgs, send)
 	case "exec":
@@ -193,7 +195,7 @@ Editor Control:
   editor stop                   Exit play mode
   editor pause                  Toggle pause/resume (play mode only)
   editor refresh                Refresh asset database
-  editor refresh --compile      Request script compilation and wait
+  editor refresh --compile      Recompile scripts and wait until done
 
 Console:
   console                       Read error & warning logs (default)
@@ -283,7 +285,7 @@ Subcommands:
                       First call pauses, second call resumes.
 
   refresh             Refresh AssetDatabase (reimport changed assets).
-    --compile         Also request script compilation and wait for it.
+    --compile         Recompile scripts and wait until compilation finishes.
 
 Examples:
   unity-cli editor play --wait    # Start and wait for play mode

@@ -95,9 +95,20 @@ func Send(inst *Instance, command string, params interface{}, timeoutMs int) (*C
 		return nil, fmt.Errorf("HTTP %d from Unity (command: %s)", resp.StatusCode, command)
 	}
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil || len(respBody) == 0 {
+		return &CommandResponse{
+			Success: true,
+			Message: fmt.Sprintf("%s sent (connection closed before response)", command),
+		}, nil
+	}
+
 	var result CommandResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to parse Unity response for '%s': %w", command, err)
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return &CommandResponse{
+			Success: true,
+			Message: string(respBody),
+		}, nil
 	}
 
 	return &result, nil

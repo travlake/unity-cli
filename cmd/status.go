@@ -84,31 +84,27 @@ func isBusyState(state string) bool {
 }
 
 func waitUntilReady(port int, timeoutMs int) error {
-	state := checkUnityReady(port)
-	if state == "" || state == "ready" || state == "playing" || state == "paused" {
-		return nil
+	baseline := time.Now().UnixMilli()
+	if status, err := readStatus(port); err == nil {
+		baseline = status.Timestamp
 	}
 
-	if state == "offline" {
-		return fmt.Errorf("Unity is not responding (port %d)", port)
-	}
-
-	fmt.Fprintf(os.Stderr, "Unity is %s — waiting for ready...\n", stateLabel(state))
+	fmt.Fprintf(os.Stderr, "Waiting for Unity...\n")
 
 	deadline := time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
 	for time.Now().Before(deadline) {
 		time.Sleep(500 * time.Millisecond)
-		state = checkUnityReady(port)
-		if state == "ready" || state == "playing" || state == "paused" {
+		status, err := readStatus(port)
+		if err != nil {
+			continue
+		}
+		if status.Timestamp > baseline {
 			fmt.Fprintf(os.Stderr, "Unity is ready.\n")
 			return nil
 		}
-		if state == "offline" || state == "" {
-			return fmt.Errorf("Unity went offline while waiting")
-		}
 	}
 
-	return fmt.Errorf("timed out waiting for Unity (stuck in %s)", stateLabel(state))
+	return fmt.Errorf("timed out waiting for Unity (port %d)", port)
 }
 
 func stateLabel(state string) string {

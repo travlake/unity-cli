@@ -7,7 +7,7 @@ import (
 	"github.com/youngwoocho02/unity-cli/internal/client"
 )
 
-func editorCmd(args []string, send sendFn) (*client.CommandResponse, error) {
+func editorCmd(args []string, send sendFn, inst *client.Instance) (*client.CommandResponse, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("usage: unity-cli editor <play|stop|pause|refresh>")
 	}
@@ -32,13 +32,19 @@ func editorCmd(args []string, send sendFn) (*client.CommandResponse, error) {
 	case "refresh":
 		_, compile := flags["compile"]
 		if compile {
-			return send("refresh_unity", map[string]interface{}{
-				"compile": "wait",
+			resp, err := send("refresh_unity", map[string]interface{}{
+				"compile": "request",
 			})
+			if err != nil {
+				return nil, err
+			}
+			if waitErr := waitUntilReady(inst.Port, flagTimeout); waitErr != nil {
+				return nil, waitErr
+			}
+			resp.Message = "Refresh and compilation completed."
+			return resp, nil
 		}
-		return send("refresh_unity", map[string]interface{}{
-			"wait_for_ready": true,
-		})
+		return send("refresh_unity", map[string]interface{}{})
 
 	default:
 		return nil, fmt.Errorf("unknown editor action: %s\nAvailable: play, stop, pause, refresh", action)
