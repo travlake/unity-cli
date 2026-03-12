@@ -67,7 +67,7 @@ Or add directly to `Packages/manifest.json`:
 "com.youngwoocho02.unity-cli-connector": "https://github.com/youngwoocho02/unity-cli.git?path=unity-connector"
 ```
 
-To pin a specific version, append `#v0.1.0` to the URL.
+To pin a specific version, append `#v0.2.5` to the URL.
 
 Once added, the Connector starts automatically when Unity opens. No configuration needed.
 
@@ -210,6 +210,9 @@ AI agents (and humans) can edit Unity asset files — `.prefab`, `.unity`, `.ass
 `reserialize` fixes this. After a text edit, it tells Unity to load the asset into memory and write it back out through its own serializer. The result is a clean, valid YAML file — as if you had edited it through the Inspector.
 
 ```bash
+# Reserialize the entire project (no arguments)
+unity-cli reserialize
+
 # After editing a prefab's transform values in a text editor
 unity-cli reserialize Assets/Prefabs/Player.prefab
 
@@ -347,6 +350,7 @@ spawn_enemy — Spawn an enemy at a position
 - Override with `[UnityCliTool(Name = "my_name")]` if needed
 - Runs on Unity main thread, so all Unity APIs are safe to call
 - Discovered automatically on Editor start and after every script recompilation
+- Duplicate tool names are detected and logged as errors — only the first discovered handler is used
 
 ## Multiple Unity Instances
 

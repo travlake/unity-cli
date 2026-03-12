@@ -67,7 +67,7 @@ https://github.com/youngwoocho02/unity-cli.git?path=unity-connector
 "com.youngwoocho02.unity-cli-connector": "https://github.com/youngwoocho02/unity-cli.git?path=unity-connector"
 ```
 
-특정 버전을 고정하려면 URL 끝에 `#v0.1.0`을 추가하세요.
+특정 버전을 고정하려면 URL 끝에 `#v0.2.5`를 추가하세요.
 
 추가 후 Unity를 열면 커넥터가 자동으로 시작됩니다. 별도 설정 불필요.
 
@@ -210,6 +210,9 @@ AI 에이전트(와 사람)는 Unity 에셋 파일 — `.prefab`, `.unity`, `.as
 `reserialize`가 이걸 해결합니다. 텍스트 수정 후 실행하면 Unity가 에셋을 메모리에 로드한 뒤 자체 시리얼라이저로 다시 기록합니다. Inspector에서 수정한 것과 동일한, 깨끗하고 유효한 YAML 파일이 됩니다.
 
 ```bash
+# 전체 프로젝트 리시리얼라이즈 (인자 없이)
+unity-cli reserialize
+
 # 프리팹의 Transform 값을 텍스트로 수정한 후
 unity-cli reserialize Assets/Prefabs/Player.prefab
 
@@ -347,6 +350,7 @@ spawn_enemy — 지정 위치에 적 스폰
 - `[UnityCliTool(Name = "my_name")]`으로 이름을 재정의할 수 있습니다
 - Unity 메인 스레드에서 실행되므로 모든 Unity API를 안전하게 호출할 수 있습니다
 - Editor 시작 시와 스크립트 재컴파일 후 자동으로 탐지됩니다
+- 중복된 도구 이름은 감지되어 에러로 로그됩니다 — 먼저 발견된 핸들러만 사용됩니다
 
 ## 여러 Unity 인스턴스
 
