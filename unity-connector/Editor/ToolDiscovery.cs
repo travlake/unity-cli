@@ -14,6 +14,9 @@ namespace UnityCliConnector
     {
         public static MethodInfo FindHandler(string command)
         {
+            MethodInfo found = null;
+            Type foundType = null;
+
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 Type[] types;
@@ -33,16 +36,28 @@ namespace UnityCliConnector
                         BindingFlags.Public | BindingFlags.Static, null,
                         new[] { typeof(JObject) }, null);
 
-                    if (method != null) return method;
+                    if (method == null) continue;
+
+                    if (found != null)
+                    {
+                        UnityEngine.Debug.LogError(
+                            $"[UnityCliConnector] Duplicate tool '{command}': " +
+                            $"{foundType.FullName} and {type.FullName}. Using first found.");
+                        continue;
+                    }
+
+                    found = method;
+                    foundType = type;
                 }
             }
 
-            return null;
+            return found;
         }
 
         public static List<object> GetToolSchemas()
         {
             var tools = new List<object>();
+            var nameToType = new Dictionary<string, Type>();
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -57,6 +72,17 @@ namespace UnityCliConnector
                     if (attr == null) continue;
 
                     var name = attr.Name ?? StringCaseUtility.ToSnakeCase(type.Name);
+
+                    if (nameToType.TryGetValue(name, out var existing))
+                    {
+                        UnityEngine.Debug.LogError(
+                            $"[UnityCliConnector] Duplicate tool name '{name}': " +
+                            $"{existing.FullName} and {type.FullName}. " +
+                            $"Rename one or remove the duplicate.");
+                        continue;
+                    }
+                    nameToType[name] = type;
+
                     var paramsType = type.GetNestedType("Parameters");
 
                     tools.Add(new
