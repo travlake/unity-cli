@@ -128,14 +128,29 @@ namespace UnityCliConnector.Tools
             return new SuccessResponse($"Retrieved {entries.Count} entries.", entries);
         }
 
-        private const int ModeBitError = 1, ModeBitWarning = 4, ModeBitException = 16,
-            ModeBitScriptingError = 512, ModeBitScriptingWarning = 1024, ModeBitScriptingException = 262144;
+        private const int ErrorMask =
+            (1 << 0)  |  // Error
+            (1 << 6)  |  // AssetImportError
+            (1 << 8)  |  // ScriptingError
+            (1 << 11) |  // ScriptCompileError
+            (1 << 13);   // StickyError
+
+        private const int WarningMask =
+            (1 << 7)  |  // AssetImportWarning
+            (1 << 9)  |  // ScriptingWarning
+            (1 << 12);   // ScriptCompileWarning
+
+        private const int ExceptionMask =
+            (1 << 1)  |  // Assert
+            (1 << 4)  |  // Fatal
+            (1 << 17) |  // ScriptingException
+            (1 << 21);   // ScriptingAssertion
 
         private static LogType GetLogTypeFromMode(int mode)
         {
-            if ((mode & (ModeBitException | ModeBitScriptingException)) != 0) return LogType.Exception;
-            if ((mode & (ModeBitError | ModeBitScriptingError)) != 0) return LogType.Error;
-            if ((mode & (ModeBitWarning | ModeBitScriptingWarning)) != 0) return LogType.Warning;
+            if ((mode & ExceptionMask) != 0) return LogType.Exception;
+            if ((mode & ErrorMask) != 0) return LogType.Error;
+            if ((mode & WarningMask) != 0) return LogType.Warning;
             return LogType.Log;
         }
     }
