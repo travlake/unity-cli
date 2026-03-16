@@ -170,7 +170,7 @@ unity-cli exec "typeof(UnityEditor.LogEntries).GetMethod(\"Clear\", System.Refle
 # 단순 표현식
 unity-cli exec "Time.time"
 unity-cli exec "Application.dataPath"
-unity-cli exec "EditorSceneManager.GetActiveScene().name"
+unity-cli exec "EditorSceneManager.GetActiveScene().name" --usings UnityEditor.SceneManagement
 
 # 게임 오브젝트 조회
 unity-cli exec "GameObject.FindObjectsOfType<Camera>().Length"
@@ -231,8 +231,18 @@ unity-cli reserialize Assets/Materials/Character.mat
 # 프로파일러 하이어라키 읽기 (마지막 프레임)
 unity-cli profiler hierarchy
 
-# 깊이 제한
+# 재귀적 드릴다운 (깊이 제한)
 unity-cli profiler hierarchy --depth 3
+
+# 최소 시간 필터 + self time 기준 정렬
+unity-cli profiler hierarchy --min 0.5 --sort self
+
+# 프로파일러 녹화 켜기/끄기
+unity-cli profiler enable
+unity-cli profiler disable
+
+# 프로파일러 상태 확인
+unity-cli profiler status
 ```
 
 ### 커스텀 도구
@@ -267,7 +277,6 @@ unity-cli status
 |--------|------|--------|
 | `--port <N>` | Unity 인스턴스 포트 직접 지정 (자동 탐지 건너뜀) | auto |
 | `--project <path>` | 프로젝트 경로로 Unity 인스턴스 선택 | latest |
-| `--json` | 원시 JSON 응답 출력 | off |
 | `--timeout <ms>` | HTTP 요청 타임아웃 | 120000 |
 
 ```bash
@@ -276,9 +285,14 @@ unity-cli --port 8091 editor play
 
 # 여러 Unity 인스턴스 중 프로젝트 경로로 선택
 unity-cli --project MyGame editor stop
+```
 
-# 원시 JSON 출력 (AI 파싱에 유용)
-unity-cli --json console --lines 10
+모든 명령어에 `--help`를 붙이면 상세 사용법을 볼 수 있습니다:
+
+```bash
+unity-cli editor --help
+unity-cli exec --help
+unity-cli profiler --help
 ```
 
 ## 커스텀 도구 만들기

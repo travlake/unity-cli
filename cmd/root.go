@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/youngwoocho02/unity-cli/internal/client"
 )
@@ -15,20 +17,18 @@ var (
 	flagPort    int
 	flagProject string
 	flagTimeout int
-	flagJSON    bool
 )
 
 func Execute() error {
 	flag.IntVar(&flagPort, "port", 0, "Override Unity instance port")
 	flag.StringVar(&flagProject, "project", "", "Select Unity instance by project path")
 	flag.IntVar(&flagTimeout, "timeout", 120000, "Request timeout in milliseconds")
-	flag.BoolVar(&flagJSON, "json", false, "Output raw JSON")
 
 	flag.Usage = func() { printHelp() }
 
-	// Find first non-flag arg position
 	args := os.Args[1:]
-	cmdArgs := extractCommandArgs(args)
+	flagArgs, cmdArgs := splitArgs(args)
+	flag.CommandLine.Parse(flagArgs)
 
 	if len(cmdArgs) == 0 {
 		printHelp()
@@ -38,7 +38,14 @@ func Execute() error {
 	category := cmdArgs[0]
 	subArgs := cmdArgs[1:]
 
-	// Handle help/version before instance discovery
+	// --help / -h on any command
+	for _, a := range subArgs {
+		if a == "--help" || a == "-h" {
+			printTopicHelp(category)
+			return nil
+		}
+	}
+
 	switch category {
 	case "help", "--help", "-h":
 		if len(subArgs) > 0 {
@@ -53,16 +60,12 @@ func Execute() error {
 	case "update":
 		return updateCmd(subArgs)
 	case "status":
-		flag.CommandLine.Parse(extractFlags(args))
 		inst, err := client.DiscoverInstance(flagProject, flagPort)
 		if err != nil {
 			return err
 		}
 		return statusCmd(inst)
 	}
-
-	// Parse remaining flags
-	flag.CommandLine.Parse(extractFlags(args))
 
 	inst, err := client.DiscoverInstance(flagProject, flagPort)
 	if err != nil {
@@ -115,12 +118,6 @@ func Execute() error {
 type sendFn func(command string, params interface{}) (*client.CommandResponse, error)
 
 func printResponse(resp *client.CommandResponse) {
-	if flagJSON {
-		b, _ := json.MarshalIndent(resp, "", "  ")
-		fmt.Println(string(b))
-		return
-	}
-
 	if !resp.Success {
 		msg := resp.Message
 		if msg == "" {
@@ -147,40 +144,58 @@ func printResponse(resp *client.CommandResponse) {
 	}
 }
 
-func extractCommandArgs(args []string) []string {
-	var result []string
-	skip := false
-	for _, a := range args {
-		if skip {
-			skip = false
-			continue
-		}
-		if a == "--port" || a == "--project" || a == "--timeout" {
-			skip = true
-			continue
-		}
-		if a == "--json" {
-			continue
-		}
-		result = append(result, a)
-	}
-	return result
-}
-
-func extractFlags(args []string) []string {
-	var result []string
-	for i, a := range args {
-		if a == "--port" || a == "--project" || a == "--timeout" {
-			result = append(result, a)
-			if i+1 < len(args) {
-				result = append(result, args[i+1])
+func parseSubFlags(args []string) map[string]string {
+	flags := map[string]string{}
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "--") {
+			key := a[2:]
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+				flags[key] = args[i+1]
+				i++
+			} else {
+				flags[key] = "true"
 			}
 		}
-		if a == "--json" {
-			result = append(result, a)
+	}
+	return flags
+}
+
+func setInt(flags map[string]string, params map[string]interface{}, flag, param string) {
+	if v, ok := flags[flag]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			params[param] = n
 		}
 	}
-	return result
+}
+
+func setFloat(flags map[string]string, params map[string]interface{}, flag, param string) {
+	if v, ok := flags[flag]; ok {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			params[param] = f
+		}
+	}
+}
+
+func setStr(flags map[string]string, params map[string]interface{}, flag, param string) {
+	if v, ok := flags[flag]; ok {
+		params[param] = v
+	}
+}
+
+func splitArgs(args []string) (flags, commands []string) {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--port" || args[i] == "--project" || args[i] == "--timeout" {
+			flags = append(flags, args[i])
+			if i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+		} else {
+			commands = append(commands, args[i])
+		}
+	}
+	return
 }
 
 func printHelp() {
@@ -252,14 +267,9 @@ Update:
 Global Options:
   --port <N>          Connect to specific Unity port (skip auto-discovery)
   --project <path>    Select Unity instance by project path
-  --json              Output full JSON response (default: data only)
   --timeout <ms>      Request timeout in ms (default: 120000)
 
-Help Topics:
-  help editor              Editor control details
-  help exec                C# execution guide with examples
-  help custom-tools        How to write custom tools
-  help setup               Installation and Unity setup
+Use "unity-cli <command> --help" for more information about a command.
 
 Notes:
   - Unity must be open with the Connector package installed
@@ -272,67 +282,148 @@ Notes:
 func printTopicHelp(topic string) {
 	switch topic {
 	case "editor":
-		fmt.Print(`unity-cli editor — Control Unity Editor state
+		fmt.Print(`Usage: unity-cli editor <play|stop|pause|refresh> [options]
 
 Subcommands:
   play [--wait]       Enter play mode
                       --wait blocks until Unity fully enters play mode.
                       Without --wait, returns immediately after requesting.
-
   stop                Exit play mode. No effect if not playing.
-
   pause               Toggle pause. Only works during play mode.
-                      First call pauses, second call resumes.
-
   refresh             Refresh AssetDatabase (reimport changed assets).
     --compile         Recompile scripts and wait until compilation finishes.
 
 Examples:
-  unity-cli editor play --wait    # Start and wait for play mode
-  unity-cli editor stop           # Stop play mode
-  unity-cli editor refresh --compile  # Recompile scripts
+  unity-cli editor play --wait
+  unity-cli editor stop
+  unity-cli editor refresh --compile
 `)
-	case "exec":
-		fmt.Print(`unity-cli exec — Execute C# code inside Unity Editor
+	case "console":
+		fmt.Print(`Usage: unity-cli console [options]
 
-The code runs with full access to UnityEngine, UnityEditor, and all
-loaded assemblies. Single expressions auto-return their result.
-Multi-statement code needs an explicit 'return' statement.
+Read Unity console log entries.
 
-Usage:
-  unity-cli exec "<code>"
-  unity-cli exec "<code>" --usings <namespace1,namespace2>
+Options:
+  --lines <N>          Limit to N entries
+  --filter <mode>      Filter: error, warn, log, all (default: error+warn)
 
 Examples:
-  # Simple expression (auto-returns)
+  unity-cli console
+  unity-cli console --lines 20 --filter all
+  unity-cli console --filter error
+`)
+	case "exec":
+		fmt.Print(`Usage: unity-cli exec "<code>" [options]
+
+Execute C# code inside Unity Editor. Full access to UnityEngine,
+UnityEditor, and all loaded assemblies.
+
+Single expressions auto-return their result.
+Multi-statement code needs an explicit 'return' statement.
+
+Options:
+  --usings <ns1,ns2>   Add extra using directives
+
+Examples:
   unity-cli exec "Time.time"
   unity-cli exec "Application.dataPath"
-  unity-cli exec "GameObject.FindObjectsOfType<Camera>().Length"
-
-  # Get active scene
-  unity-cli exec "EditorSceneManager.GetActiveScene().name"
-
-  # Multi-statement (explicit return)
+  unity-cli exec "EditorSceneManager.GetActiveScene().name" --usings UnityEditor.SceneManagement
   unity-cli exec "var go = new GameObject(\"Test\"); return go.name;"
-
-  # With extra using directives
   unity-cli exec "World.All.Count" --usings Unity.Entities
-
-  # Complex query
-  unity-cli exec "Selection.activeGameObject?.name ?? \"nothing selected\""
 
 Notes:
   - Strings inside code need escaped quotes: \"text\"
-  - The code is compiled at runtime using CSharpCodeProvider
   - Compilation errors are returned in the response message
 `)
+	case "menu":
+		fmt.Print(`Usage: unity-cli menu "<path>"
+
+Execute a Unity menu item by its path.
+
+Examples:
+  unity-cli menu "File/Save Project"
+  unity-cli menu "Assets/Refresh"
+  unity-cli menu "Window/General/Console"
+
+Note: File/Quit is blocked for safety.
+`)
+	case "reserialize":
+		fmt.Print(`Usage: unity-cli reserialize [path...]
+
+Force Unity to reserialize assets through its own YAML serializer.
+Run after editing .prefab, .unity, .asset, or .mat files as text.
+No arguments = reserialize the entire project.
+
+Examples:
+  unity-cli reserialize
+  unity-cli reserialize Assets/Prefabs/Player.prefab
+  unity-cli reserialize Assets/Scenes/Main.unity Assets/Scenes/Lobby.unity
+`)
+	case "profiler":
+		fmt.Print(`Usage: unity-cli profiler <subcommand> [options]
+
+Subcommands:
+  hierarchy             Top-level profiler samples (last frame)
+    --depth <N>         Recursive depth (0=unlimited, default: 1)
+    --parent <ID>       Drill into item by ID
+    --min <ms>          Filter items below threshold
+    --sort <col>        Sort by: total (default), self, calls
+    --max <N>           Max children per level (default: 30)
+    --frame <N>         Specific frame index
+    --thread <N>        Thread index (0=main)
+  enable                Start profiler recording
+  disable               Stop profiler recording
+  status                Show profiler state
+  clear                 Clear all captured frames
+
+Examples:
+  unity-cli profiler hierarchy --depth 3
+  unity-cli profiler hierarchy --min 0.5 --sort self
+  unity-cli profiler enable
+`)
+	case "tool":
+		fmt.Print(`Usage: unity-cli tool <list|call|help> [options]
+
+Subcommands:
+  list                  List all registered tools with parameter schemas
+  call <name>           Call a tool with no parameters
+  call <name> --params '{"key":"val"}'
+                        Call a tool with JSON parameters
+  help <name>           Show tool description and parameters
+
+Examples:
+  unity-cli tool list
+  unity-cli tool call spawn_enemy --params '{"x":1,"y":0,"z":5}'
+  unity-cli tool help spawn_enemy
+
+See "unity-cli help custom-tools" for how to write custom tools.
+`)
+	case "status":
+		fmt.Print(`Usage: unity-cli status
+
+Show the current Unity Editor state: port, project path, version, PID.
+Reports "not responding" if heartbeat is older than 3 seconds.
+
+Example:
+  unity-cli status
+`)
+	case "update":
+		fmt.Print(`Usage: unity-cli update [options]
+
+Update the CLI binary to the latest release from GitHub.
+
+Options:
+  --check              Check for updates without installing
+
+Examples:
+  unity-cli update
+  unity-cli update --check
+`)
 	case "custom-tools", "custom", "tools":
-		fmt.Print(`unity-cli custom tools — How to write and use custom tools
+		fmt.Print(`How to write custom tools for unity-cli
 
 Custom tools are C# classes that run inside Unity Editor. The CLI
 discovers them automatically via reflection.
-
-## Writing a Tool
 
 Create a static class with [UnityCliTool] in any Editor assembly:
 
@@ -346,33 +437,17 @@ Create a static class with [UnityCliTool] in any Editor assembly:
         {
             [ToolParameter("X world position", Required = true)]
             public float X { get; set; }
-
-            [ToolParameter("Y world position", Required = true)]
-            public float Y { get; set; }
-
-            [ToolParameter("Z world position", Required = true)]
-            public float Z { get; set; }
         }
 
         public static object HandleCommand(JObject parameters)
         {
             float x = parameters["x"]?.Value<float>() ?? 0;
-            float y = parameters["y"]?.Value<float>() ?? 0;
-            float z = parameters["z"]?.Value<float>() ?? 0;
-
-            var prefab = Resources.Load<GameObject>("Enemy");
-            var instance = Object.Instantiate(prefab,
-                new Vector3(x, y, z), Quaternion.identity);
-
-            return new SuccessResponse("Enemy spawned", new {
-                name = instance.name,
-                position = new { x, y, z }
-            });
+            var go = Object.Instantiate(prefab, new Vector3(x, 0, 0), Quaternion.identity);
+            return new SuccessResponse("Spawned", new { name = go.name });
         }
     }
 
-## Rules
-
+Rules:
   - Class must be static
   - Must have: public static object HandleCommand(JObject parameters)
   - Return SuccessResponse(message, data) or ErrorResponse(message)
@@ -382,19 +457,12 @@ Create a static class with [UnityCliTool] in any Editor assembly:
   - Runs on Unity main thread — all Unity APIs are safe
   - Discovered on Editor start and after every script recompilation
   - Duplicate tool names are detected and logged as errors (first wins)
-
-## Using Tools
-
-  unity-cli tool list                           # List all tools with schemas
-  unity-cli tool call spawn_enemy --params '{"x":1,"y":0,"z":5}'
-  unity-cli tool help spawn_enemy               # Show parameter details
 `)
 	case "setup", "install":
-		fmt.Print(`unity-cli setup — Installation and Unity configuration
+		fmt.Print(`Installation and Unity setup
 
-## CLI Installation
-
-  # Linux / macOS (one-liner)
+CLI Installation:
+  # Linux / macOS
   curl -fsSL https://raw.githubusercontent.com/youngwoocho02/unity-cli/master/install.sh | sh
 
   # Windows (PowerShell)
@@ -403,34 +471,15 @@ Create a static class with [UnityCliTool] in any Editor assembly:
   # Go install (any platform)
   go install github.com/youngwoocho02/unity-cli@latest
 
-## Unity Setup
-
-  Add the Connector package via Package Manager:
-    1. Window → Package Manager → + → Add package from git URL
-    2. Paste: https://github.com/youngwoocho02/unity-cli.git?path=unity-connector
-
-  Or add to Packages/manifest.json:
-    "com.youngwoocho02.unity-cli-connector": "https://github.com/youngwoocho02/unity-cli.git?path=unity-connector"
-
+Unity Setup:
+  1. Window → Package Manager → + → Add package from git URL
+  2. Paste: https://github.com/youngwoocho02/unity-cli.git?path=unity-connector
   The Connector starts automatically when Unity opens.
 
-## Multiple Unity Instances
-
-  When multiple editors are open, each registers on a different port
-  (8090, 8091, ...). Select by project path or port:
-
-    unity-cli --project MyGame editor play
-    unity-cli --port 8091 editor play
-
-  Default: uses the most recently registered instance.
-
-## Verification
-
-  1. Open Unity with the Connector package installed
-  2. Run: unity-cli tool list
-  3. You should see a list of available tools
+Verify:
+  unity-cli tool list
 `)
 	default:
-		fmt.Printf("Unknown help topic: %s\n\nAvailable topics: editor, exec, custom-tools, setup\n", topic)
+		fmt.Printf("Unknown help topic: %s\n\nUse \"unity-cli --help\" for available commands.\n", topic)
 	}
 }

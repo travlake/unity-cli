@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -57,7 +58,7 @@ func DiscoverInstance(project string, port int) (*Instance, error) {
 
 	if project != "" {
 		for _, inst := range instances {
-			if contains(inst.ProjectPath, project) {
+			if strings.Contains(inst.ProjectPath, project) {
 				return &inst, nil
 			}
 		}
@@ -112,18 +113,4 @@ func Send(inst *Instance, command string, params interface{}, timeoutMs int) (*C
 	}
 
 	return &result, nil
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		findSubstring(s, substr))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

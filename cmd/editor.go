@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/youngwoocho02/unity-cli/internal/client"
 )
@@ -49,19 +48,3 @@ func editorCmd(args []string, send sendFn, port int) (*client.CommandResponse, e
 	}
 }
 
-func parseSubFlags(args []string) map[string]string {
-	flags := map[string]string{}
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if strings.HasPrefix(a, "--") {
-			key := a[2:]
-			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
-				flags[key] = args[i+1]
-				i++
-			} else {
-				flags[key] = "true"
-			}
-		}
-	}
-	return flags
-}

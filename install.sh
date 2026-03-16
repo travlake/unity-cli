@@ -28,10 +28,18 @@ chmod +x "$INSTALL_DIR/unity-cli"
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
-  *) echo "export PATH=\"$INSTALL_DIR:\$PATH\"" >> "$HOME/.profile"
-     export PATH="$INSTALL_DIR:$PATH"
-     echo "Added $INSTALL_DIR to PATH (restart shell or run: source ~/.profile)" ;;
+  *)
+    export PATH="$INSTALL_DIR:$PATH"
+    LINE="export PATH=\"$INSTALL_DIR:\$PATH\""
+    if [ -f "$HOME/.zshrc" ]; then
+      echo "$LINE" >> "$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+      echo "$LINE" >> "$HOME/.bashrc"
+    else
+      echo "$LINE" >> "$HOME/.profile"
+    fi
+    echo "Added $INSTALL_DIR to PATH (restart shell to apply)" ;;
 esac
 
 echo "Installed unity-cli to $INSTALL_DIR/unity-cli"
-unity-cli version
+"$INSTALL_DIR/unity-cli" version

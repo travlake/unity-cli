@@ -170,7 +170,7 @@ Single expressions auto-return their result. Multi-statement code needs an expli
 # Simple expressions
 unity-cli exec "Time.time"
 unity-cli exec "Application.dataPath"
-unity-cli exec "EditorSceneManager.GetActiveScene().name"
+unity-cli exec "EditorSceneManager.GetActiveScene().name" --usings UnityEditor.SceneManagement
 
 # Query game objects
 unity-cli exec "GameObject.FindObjectsOfType<Camera>().Length"
@@ -231,8 +231,18 @@ This is what makes text-based asset editing safe. Without it, a single misplaced
 # Read profiler hierarchy (last frame)
 unity-cli profiler hierarchy
 
-# With depth limit
+# Recursive drill-down with depth limit
 unity-cli profiler hierarchy --depth 3
+
+# Filter by minimum time and sort by self time
+unity-cli profiler hierarchy --min 0.5 --sort self
+
+# Enable/disable profiler recording
+unity-cli profiler enable
+unity-cli profiler disable
+
+# Show profiler state
+unity-cli profiler status
 ```
 
 ### Custom Tools
@@ -267,7 +277,6 @@ The CLI also checks Unity's state automatically before sending any command. If U
 |------|-------------|---------|
 | `--port <N>` | Override Unity instance port (skip auto-discovery) | auto |
 | `--project <path>` | Select Unity instance by project path | latest |
-| `--json` | Output raw JSON response | off |
 | `--timeout <ms>` | HTTP request timeout | 120000 |
 
 ```bash
@@ -276,9 +285,14 @@ unity-cli --port 8091 editor play
 
 # Select by project path when multiple Unity instances are open
 unity-cli --project MyGame editor stop
+```
 
-# Get raw JSON output (useful for AI parsing)
-unity-cli --json console --lines 10
+Use `--help` on any command for detailed usage:
+
+```bash
+unity-cli editor --help
+unity-cli exec --help
+unity-cli profiler --help
 ```
 
 ## Writing Custom Tools

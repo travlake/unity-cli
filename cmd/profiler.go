@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/youngwoocho02/unity-cli/internal/client"
 )
@@ -18,39 +17,13 @@ func profilerCmd(args []string, send sendFn) (*client.CommandResponse, error) {
 	switch action {
 	case "hierarchy":
 		params := map[string]interface{}{}
-		if v, ok := flags["parent"]; ok {
-			if n, err := strconv.Atoi(v); err == nil {
-				params["parent_id"] = n
-			}
-		}
-		if v, ok := flags["frame"]; ok {
-			if n, err := strconv.Atoi(v); err == nil {
-				params["frame"] = n
-			}
-		}
-		if v, ok := flags["thread"]; ok {
-			if n, err := strconv.Atoi(v); err == nil {
-				params["thread_index"] = n
-			}
-		}
-		if v, ok := flags["min"]; ok {
-			if f, err := strconv.ParseFloat(v, 32); err == nil {
-				params["min_time"] = f
-			}
-		}
-		if v, ok := flags["sort"]; ok {
-			params["sort_by"] = v
-		}
-		if v, ok := flags["max"]; ok {
-			if n, err := strconv.Atoi(v); err == nil {
-				params["max_items"] = n
-			}
-		}
-		if v, ok := flags["depth"]; ok {
-			if n, err := strconv.Atoi(v); err == nil {
-				params["depth"] = n
-			}
-		}
+		setInt(flags, params, "parent", "parent_id")
+		setInt(flags, params, "frame", "frame")
+		setInt(flags, params, "thread", "thread_index")
+		setFloat(flags, params, "min", "min_time")
+		setStr(flags, params, "sort", "sort_by")
+		setInt(flags, params, "max", "max_items")
+		setInt(flags, params, "depth", "depth")
 		return send("profiler_hierarchy", params)
 
 	case "enable":
