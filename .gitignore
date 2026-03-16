@@ -2,3 +2,5 @@ unity-cli
 *.exe
 .env
 .DS_Store
+.vscode/
+.idea/
